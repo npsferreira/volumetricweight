@@ -34,19 +34,22 @@ output = args['output']
 print('[INFO] Opening folder ' + folder)
 filelist = os.listdir(folder)
 
+errors = []
+
 for f in filelist:
     print('[INFO] Processing ' + f)
     im = cv2.imread(os.path.join(folder, f))
     if (args['debug']):
         displayImage(im)
 
-barcodes = np.array([])
-for i in [200, 500, 1000]:
-    t = resize(im, width=i)
-    barcodes= np.unique(np.concatenate((barcodes, readBarcode(t))))
-    
+    #doing initial assessment
+    barcodes = np.array([])
+    for i in [200, 500, 1000]:
+        t = resize(im, width=i)
+        barcodes= np.unique(np.concatenate((barcodes, readBarcode(t))))
+        
     if len(barcodes) == 0:
-        print('Doing sliding window:', )
+        print('Doing sliding window:', f)
         im2 = resize(im, 2000)
         slidingWindowSize = 600
         imageWidth = im2.shape[1]
@@ -60,21 +63,41 @@ for i in [200, 500, 1000]:
             while(currentX + slidingWindowSize <= imageWidth):
                 t = im2[currentY:slidingWindowSize + currentY,currentX:slidingWindowSize + currentX]
                 currentX = currentX + step
+                barcodes= np.unique(np.concatenate((barcodes, readBarcode(t))))  
+            currentY = currentY + step
+            currentX = 0
+     
+    if len(barcodes) == 0:
+        print('Doing sliding window 2:', f)
+        im2 = im
+        slidingWindowSize = 800
+        imageWidth = im2.shape[1]
+        imageHeight = im2.shape[0]
+        steps = math.floor(imageHeight / slidingWindowSize)
+        step = 200
+        currentY = 0
+        currentX = 0
+
+        while (currentY + slidingWindowSize <= imageHeight):
+            while(currentX + slidingWindowSize <= imageWidth):
+                t = im2[currentY:slidingWindowSize + currentY,currentX:slidingWindowSize + currentX]
+                currentX = currentX + step
                 barcodes= np.unique(np.concatenate((barcodes, readBarcode(t))))
-                
             currentY = currentY + step
             currentX = 0
 
     print('[INFO] Found: ', barcodes)
     if len(barcodes) == 0:
-        print('Writing errors')
-        os.makedirs('./errors',exist_ok=True)
-        efn = os.path.join('./errors', 'errors.txt')
-        with open(efn, "w") as text_file:
-            print(f, file=text_file)
+        errors.append(f)
 
     f = f[:-3] + 'txt'
     ofn = os.path.join(output, f)
     os.makedirs(output,exist_ok=True)
     with open(ofn, "w") as text_file:
          print(barcodes, file=text_file)
+
+print('Writing errors: ', len(errors))
+os.makedirs('./errors',exist_ok=True)
+efn = os.path.join('./errors', 'errors.txt')
+with open(efn, "w") as text_file:
+    print(errors, file=text_file)
