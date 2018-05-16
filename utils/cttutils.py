@@ -3,7 +3,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import cv2
+import csv
+import random
 from urllib.request import urlopen
+import codecs
+import os
+
 
 def translate(image, x, y):
 	# Define the translation matrix and perform the translation
@@ -100,3 +105,31 @@ def url_to_image(url, readFlag=cv2.IMREAD_COLOR):
 
     # return the image
     return image
+
+def calculateVolumeWeight(height, width, length, destination):
+    # apply the volume weight formula based on the measures passed
+    return (height * width * length) / getDestinationConversionFactor(destination)
+
+def getDestinationConversionFactor(destination):
+    # CTT conversion factor for the destination
+    switcher = {
+        "Portugal": 6000,
+        "Spain": 4000,
+        "RestOfTheWorld": 5000,
+    }
+    conversionFactor = switcher.get(destination, 6000)
+    return conversionFactor
+    
+def findPackageInformation(barcode):
+    with open(os.path.realpath('.') + '\\resources\\addresses\\Moradas.csv', 'r', encoding="utf8") as csvfile:
+        spamreader = csv.reader(csvfile, delimiter=';')
+        randomNum = random.randint(1,3000)
+    
+        idx = 0
+        for row in spamreader:
+            idx += 1
+            if(idx == randomNum):
+                return row
+            
+def midpoint(ptA, ptB):
+    return ((ptA[0] + ptB[0]) * 0.5, (ptA[1] + ptB[1]) * 0.5)
