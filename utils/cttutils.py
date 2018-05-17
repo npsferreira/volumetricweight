@@ -108,7 +108,7 @@ def url_to_image(url, readFlag=cv2.IMREAD_COLOR):
 
 def calculateVolumeWeight(height, width, length, destination):
     # apply the volume weight formula based on the measures passed
-    return (height * width * length) / getDestinationConversionFactor(destination)
+    return round((height * width * length) / getDestinationConversionFactor(destination), 1)
 
 def getDestinationConversionFactor(destination):
     # CTT conversion factor for the destination
