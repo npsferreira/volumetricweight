@@ -97,7 +97,7 @@ def detectObject(img, bg_img, th):
 
     return np.array([box])
 
-def calculateSize(img, bg_img, ppm, th):
+def calculateSize(img, bg_img, ppm, th, debug=False):
     boxes = detectObject(img, bg_img, th)
     
     # initialize object_sizes
@@ -148,8 +148,11 @@ def calculateSize(img, bg_img, ppm, th):
         cv2.putText(orig, "{:.1f}cm".format(dimA), (int(tltrX - 15), int(tltrY - 10)), cv2.FONT_HERSHEY_SIMPLEX,0.6, (0, 0, 255), 2)
         cv2.putText(orig, "{:.1f}cm".format(dimB), (int(trbrX + 10), int(trbrY)), cv2.FONT_HERSHEY_SIMPLEX,0.6, (0, 0, 255), 2)
         
-    displayImage(orig, figSize=(20,20))
+    if debug:
+        displayImage(orig, figSize=(20,20))
+        
     return object_sizes 
+
 
 def calculatePixelDistance(img, bg_img, th, mode):
     boxes = detectObject(img, bg_img, th)
@@ -166,4 +169,5 @@ def calculatePixelDistance(img, bg_img, th, mode):
         x1 = img.shape[0]- np.max(b[:,1])
     else:
         x1 = np.min(b[:,1])
+  
     return x1

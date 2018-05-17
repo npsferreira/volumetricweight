@@ -7,8 +7,11 @@ import csv
 import random
 from urllib.request import urlopen
 import codecs
+import imutils
 import os
-from utils.calibrateutils import calibrate
+import pickle
+from utils.calibrateutils import calibrate, getCameraParameters, calculatePpm
+from utils.imageutils import crop, displayImage, calculatePixelDistance, calculateSize
 
 def translate(image, x, y):
 	# Define the translation matrix and perform the translation
@@ -123,21 +126,7 @@ def findPackageInformation(barcode):
 
 def calibrateCamerasForVolumeWeight():
 	
-	side_params = {
-                'width': 1500,
-                'height': 1000,
-                'startX': 500,
-                'startY': 400,
-                'th': 50
-              }
-
-	top_params = {
-                'width': 1050,
-                'height': 1300,
-                'startX': 500,
-                'startY': 400,
-                'th': 30
-              }
+	side_params, top_params = getCameraParameters()
 	
 	bg_side = cv2.imread("resources/calibrationImages/bg_side.jpg")
 	side1 = cv2.imread("resources/calibrationImages/side1.jpg")
@@ -151,5 +140,48 @@ def calibrateCamerasForVolumeWeight():
 	knownWidth = 20
 
 	vals = calibrate(bg_top, top1, top2, top_params, bg_side, side1, side2, side_params, knownHeight, knownWidth)
+	
 	#save values in file
+	os.makedirs('config',exist_ok=True)
+	cv = os.path.join('config', 'calibrationvalues.txt')
+	with open(cv, 'wb') as f:
+		pickle.dump(vals, f)
 	return vals
+
+def getCameraCalibrationValues():
+	cv = os.path.join('config', 'calibrationvalues.txt')
+	with open(cv, 'rb') as f:
+		vals = pickle.load(f)
+	return vals
+
+def getDimensions(side, top, debug=False):
+    
+	vals = getCameraCalibrationValues()
+	side_b, side_m, top_b, top_m = vals
+
+	side_params, top_params = getCameraParameters()
+
+	bg_side = cv2.imread("resources/calibrationImages/bg_side.jpg")
+	bg_top = cv2.imread("resources/calibrationImages/bg_top.jpg")
+	
+	top = imutils.rotate(top,180)
+	bg_top = imutils.rotate(bg_top, 180)
+
+	side = crop(side, side_params['width'], side_params['height'], side_params['startX'], side_params['startY'])
+	bg_side = crop(bg_side, side_params['width'], side_params['height'], side_params['startX'], side_params['startY'])
+
+	top = crop(top, top_params['width'], top_params['height'], top_params['startX'], top_params['startY'])
+	bg_top = crop(bg_top, top_params['width'], top_params['height'], top_params['startX'], top_params['startY'])
+
+	x = calculatePixelDistance(top, bg_top, top_params['th'], mode='top')
+	ppm = calculatePpm(x, side_m, side_b)
+	height = calculateSize(side, bg_side, ppm, side_params['th'], debug)[0][2]
+
+	x = calculatePixelDistance(side, bg_side, side_params['th'], mode='side')
+	ppm = calculatePpm(x, top_m, top_b)
+	vals = calculateSize(top, bg_top, ppm, top_params['th'], debug)
+
+	width = vals[0][1]
+	length = vals[0][2]
+
+	return (length, width, height)
