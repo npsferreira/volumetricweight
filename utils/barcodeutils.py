@@ -22,8 +22,6 @@ def readBarcode(image):
 def findBarCode(file):
     im = cv2.imread(file)
     
-    displayImage(im)
-    
     #doing initial assessment
     barcodes = np.array([])
     for i in [200, 500, 1000]:
@@ -31,7 +29,7 @@ def findBarCode(file):
         barcodes= np.unique(np.concatenate((barcodes, readBarcode(t))))
         
     if len(barcodes) == 0:
-        print('Doing sliding window:', f)
+        print('Doing sliding window:', file)
         im2 = resize(im, 2000)
         slidingWindowSize = 600
         imageWidth = im2.shape[1]
