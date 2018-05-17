@@ -4,7 +4,7 @@ import numpy as np
 import cv2
 from imutils import resize
 import math
-from utils.cttutils import displayImage
+from utils.imageutils import displayImage
 
 
 def decode(im):
