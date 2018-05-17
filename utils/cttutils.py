@@ -8,7 +8,7 @@ import random
 from urllib.request import urlopen
 import codecs
 import os
-
+from utils.calibrateutils import calibrate
 
 def translate(image, x, y):
 	# Define the translation matrix and perform the translation
@@ -85,17 +85,6 @@ def plot_histogram(image, title, mask=None):
 		plt.plot(hist, color = color)
 		plt.xlim([0, 256])
 
-def displayImage(image, figSize=(8,8), title=None):
-    fig = plt.figure(figsize=figSize)
-    plt.axis("off")
-    if len(image.shape) == 3:
-        plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-    else:
-        plt.imshow(image, cmap='Greys_r',  interpolation='bicubic')
-    if title is not None:
-        plt.title(title)
-    plt.show()
-
 def url_to_image(url, readFlag=cv2.IMREAD_COLOR):
     # download the image, convert it to a NumPy array, and then read
     # it into OpenCV format
@@ -131,5 +120,36 @@ def findPackageInformation(barcode):
             if(idx == randomNum):
                 return row
             
-def midpoint(ptA, ptB):
-    return ((ptA[0] + ptB[0]) * 0.5, (ptA[1] + ptB[1]) * 0.5)
+
+def calibrateCamerasForVolumeWeight():
+	
+	side_params = {
+                'width': 1500,
+                'height': 1000,
+                'startX': 500,
+                'startY': 400,
+                'th': 50
+              }
+
+	top_params = {
+                'width': 1050,
+                'height': 1300,
+                'startX': 500,
+                'startY': 400,
+                'th': 30
+              }
+	
+	bg_side = cv2.imread("resources/calibrationImages/bg_side.jpg")
+	side1 = cv2.imread("resources/calibrationImages/side1.jpg")
+	side2 = cv2.imread("resources/calibrationImages/side2.jpg")
+
+	bg_top = cv2.imread("resources/calibrationImages/bg_top.jpg")
+	top1 = cv2.imread("resources/calibrationImages/top1.jpg")
+	top2 = cv2.imread("resources/calibrationImages/top2.jpg")
+
+	knownHeight = 19.5
+	knownWidth = 20
+
+	vals = calibrate(bg_top, top1, top2, top_params, bg_side, side1, side2, side_params, knownHeight, knownWidth)
+	#save values in file
+	return vals

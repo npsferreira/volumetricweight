@@ -2,12 +2,10 @@ import cv2
 import numpy as np
 import imutils
 import os
-from utils.cttutils import displayImage
 from scipy.spatial import distance as dist
 from imutils import perspective
 from imutils import contours
-from utils.imageutils import DoGrayscaleAndBlur
-from utils.cttutils import midpoint
+from utils.imageutils import DoGrayscaleAndBlur, midpoint, displayImage, crop, detectObject
 
 
 #def getPreviousCalibratedValues():
@@ -26,89 +24,95 @@ from utils.cttutils import midpoint
 #    with open(efn, "w") as text_file:
 #        print(calibratedValues, file=text_file)
 
-
 def calculateMetric(knownValue, img, bg_img, metric, th):
-    diff = cv2.absdiff(bg_img, img)
-    mask = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
-    imask =  mask>th
-    canvas = np.zeros_like(img, np.uint8)
-    canvas[:] = 255
-    canvas[imask] = img[imask]
-    # perform edge detection, then perform a dilation + erosion to
-    # close gaps in between object edges
-    result = DoGrayscaleAndBlur(canvas)
-    edged = cv2.Canny(result, 180, 200)
-    edged = cv2.dilate(edged, None, iterations=2)
-    edged = cv2.erode(edged, None, iterations=1)
-     # find contours in the edge map
-    cnts = cv2.findContours(edged.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    cnts = cnts[0] if imutils.is_cv2() else cnts[1]
-
-    # sort the contours from left-to-right and initialize the
-    # 'pixels per metric' calibration variable
-    (cnts, _) = contours.sort_contours(cnts, method='left-to-right')
-    
-    # get areas for all contours
-    areas = []
-    for c in cnts:
-        a = cv2.contourArea(c)
-        areas.append(a)
-    
-    areas = np.array(areas)
-    cnts = np.array(cnts)
-
-    # remove small contours
-    cnts = cnts[np.where(areas >= 600)[0]]
-    
-    # remove areas of removed contours
-    areas = areas[np.where(areas >= 600)[0]]
-    
-    # loop over the contours individually and get bounding boxes
-    boxes = []
-    for c in cnts:
-    
-        # compute the rotated bounding box of the contour
-        box = cv2.minAreaRect(c)
-        box = cv2.boxPoints(box) 
-        box = np.array(box, dtype="int")
- 
-        # order the points in the contour such that they appear
-        # in top-left, top-right, bottom-right, and bottom-left
-        # order, then draw the outline of the rotated bounding
-        # box
-        box = perspective.order_points(box)
-        boxes.append(box)
-
-    boxes = np.array(boxes)
-    object_sizes = []
+     
+    boxes = detectObject(img, bg_img, th)
 
     pixelsPerMetric = None
-    for box in boxes:
-        # unpack the ordered bounding box, then compute the midpoint
-        # between the top-left and top-right coordinates, followed by
-        # the midpoint between bottom-left and bottom-right coordinates
-        (tl, tr, br, bl) = box
-        (tltrX, tltrY) = midpoint(tl, tr)
-        (blbrX, blbrY) = midpoint(bl, br)
- 
-        # compute the midpoint between the top-left and top-right points,
-        # followed by the midpoint between the top-righ and bottom-right
-        (tlblX, tlblY) = midpoint(tl, bl)
-        (trbrX, trbrY) = midpoint(tr, br)
- 
-        # compute the Euclidean distance between the midpoints
-        dA = dist.euclidean((tltrX, tltrY), (blbrX, blbrY))
-        dB = dist.euclidean((tlblX, tlblY), (trbrX, trbrY))
- 
-        # if the pixels per metric has not been initialized, then
-        # compute it as the ratio of pixels to supplied metric
-        # (in this case, inches)
-        if pixelsPerMetric is None:
-            if metric == 'height':
-                pixelsPerMetric = dA / knownValue
-            else:
-                pixelsPerMetric = dB / knownValue
-
-        #object_sizes.append([box, dimB, dimA])
+    box = boxes[0]
+    #unpack the ordered bounding box, then compute the midpoint
+    # between the top-left and top-right coordinates, followed by
+    # the midpoint between bottom-left and bottom-right coordinates
+    (tl, tr, br, bl) = box
+    (tltrX, tltrY) = midpoint(tl, tr)
+    (blbrX, blbrY) = midpoint(bl, br)
+    
+    # compute the midpoint between the top-left and top-right points,
+    # followed by the midpoint between the top-righ and bottom-right
+    (tlblX, tlblY) = midpoint(tl, bl)
+    (trbrX, trbrY) = midpoint(tr, br)
+    
+    # compute the Euclidean distance between the midpoints
+    dA = dist.euclidean((tltrX, tltrY), (blbrX, blbrY))
+    dB = dist.euclidean((tlblX, tlblY), (trbrX, trbrY))
+    
+    # if the pixels per metric has not been initialized, then
+    # compute it as the ratio of pixels to supplied metric
+    # (in this case, inches)
+    if pixelsPerMetric is None:
+        if metric == 'height':
+            pixelsPerMetric = dA / knownValue
+        else:
+            pixelsPerMetric = dB / knownValue
 
     return pixelsPerMetric, boxes
+
+def calculatePpm(x, m, b):
+    ppm = x*m + b
+    return ppm
+
+def getCameraParameters():
+    side_params = {
+                'width': 1500,
+                'height': 1000,
+                'startX': 500,
+                'startY': 400,
+                'th': 50
+              }
+
+    top_params = {      
+                'width': 1050,
+                'height': 1300,
+                'startX': 500,
+                'startY': 400,
+                'th': 35
+              }
+    
+    return side_params, top_params
+
+def calibrate(bg_top, top1, top2, top_params, bg_side, side1, side2, side_params, knownHeight, knownWidth):
+    
+    top1 = imutils.rotate(top1,180)
+    top2 = imutils.rotate(top2,180)
+    bg_top = imutils.rotate(bg_top, 180)
+
+    side1 = crop(side1, side_params['width'], side_params['height'], side_params['startX'], side_params['startY'])
+    side2 = crop(side2, side_params['width'], side_params['height'], side_params['startX'], side_params['startY'])
+    bg_side = crop(bg_side, side_params['width'], side_params['height'], side_params['startX'], side_params['startY'])
+
+    top1 = crop(top1, top_params['width'], top_params['height'], top_params['startX'], top_params['startY'])
+    top2 = crop(top2, top_params['width'], top_params['height'], top_params['startX'], top_params['startY'])
+    bg_top = crop(bg_top, top_params['width'], top_params['height'], top_params['startX'], top_params['startY'])
+
+    hppm1, boxes_s1 = calculateMetric(knownHeight, side1, bg_side, 'height', side_params['th'])
+    hppm2, boxes_s2 = calculateMetric(knownHeight, side2, bg_side, 'height', side_params['th'])
+    wppm1, boxes_t1 = calculateMetric(knownWidth, top1, bg_top, 'width', top_params['th'])
+    wppm2, boxes_t2 = calculateMetric(knownWidth, top2, bg_top, 'width', top_params['th'])
+
+    # side
+    b = boxes_t1[0]
+    x1 = top1.shape[0]- np.max(b[:,1])
+    b = boxes_t2[0]
+    x2 = top2.shape[0]- np.max(b[:,1])
+    side_b = (hppm2*x1 - hppm1*x2) / (-x2 + x1)
+    side_m = (hppm1 - side_b) / x1
+
+    # top
+    b = boxes_s1[0]
+    x1 = np.min(b[:,1])
+    b = boxes_s2[0]
+    x2 = np.min(b[:,1])
+    top_b = (wppm2*x1 - wppm1*x2) / (-x2 + x1)
+    top_m = (wppm1 - top_b) / x1
+
+    return side_b, side_m, top_b, top_m
